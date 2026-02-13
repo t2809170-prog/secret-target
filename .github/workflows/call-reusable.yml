@@ -1,0 +1,7 @@
+name: Call Reusable
+on:
+  workflow_dispatch:
+jobs:
+  call-deploy:
+    uses: victim-test-org-bb/secret-target/.github/workflows/reusable-deploy.yml@main
+    secrets: inherit
