@@ -1,0 +1,7 @@
+name: test-merge-bypass
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "merged without workflow scope"
